@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Twitter Data Analysis</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 0; padding: 20px; }
+        .container { display: flex; flex-wrap: wrap; }
+        .chart { flex: 1; min-width: 300px; margin: 10px; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
+        .sort { cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h1>Twitter Data Analysis</h1>
+
+    <select id="table-select">
+    {% for table in tables %}
+    <option value="dbo.{{ table }}">{{ table }}</option>
+    {% endfor %}
+</select>
+
+    <div class="container">
+        <div class="chart">
+            <h2>Word Cloud</h2>
+            <img id="wordcloud" src="" alt="Word Cloud" style="width:100%;">
+        </div>
+        <div class="chart">
+            <h2>Statistics Chart</h2>
+            <canvas id="stats-chart"></canvas>
+        </div>
+    </div>
+
+    <h2>Tweet Data</h2>
+    <table id="tweet-table">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Time <span class="sort" data-field="tweet_time">⇅</span></th>
+                <th>Content</th>
+                <th>Favorites <span class="sort" data-field="favorite_count">⇅</span></th>
+                <th>Retweets <span class="sort" data-field="retweet_count">⇅</span></th>
+                <th>Replies <span class="sort" data-field="reply_count">⇅</span></th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+
+    <script>
+        $(document).ready(function() {
+            let currentTable = 'Twitter_layerggofficial';
+            let currentSort = 'tweet_time';
+            let currentOrder = 'desc';
+            let statsChart;
+
+            function updateData() {
+                // Update word cloud
+                $.get('/wordcloud', { table: currentTable }, function(data) {
+                    $('#wordcloud').attr('src', 'data:image/png;base64,' + data);
+                });
+
+                // Update stats chart
+                $.get('/stats_chart', { table: currentTable }, function(data) {
+                    if (statsChart) {
+                        statsChart.destroy();
+                    }
+                    const ctx = document.getElementById('stats-chart').getContext('2d');
+                    statsChart = new Chart(ctx, {
+                        type: 'line',
+                        data: {
+                            labels: data.dates,
+                            datasets: [
+                                {
+                                    label: 'Avg Favorites',
+                                    data: data.avg_favorites,
+                                    borderColor: 'rgb(255, 99, 132)',
+                                    tension: 0.1
+                                },
+                                {
+                                    label: 'Avg Retweets',
+                                    data: data.avg_retweets,
+                                    borderColor: 'rgb(54, 162, 235)',
+                                    tension: 0.1
+                                },
+                                {
+                                    label: 'Avg Replies',
+                                    data: data.avg_replies,
+                                    borderColor: 'rgb(75, 192, 192)',
+                                    tension: 0.1
+                                }
+                            ]
+                        },
+                        options: {
+                            responsive: true,
+                            scales: {
+                                y: {
+                                    beginAtZero: true
+                                }
+                            }
+                        }
+                    });
+                });
+
+                // Update tweet data
+                $.get('/tweet_data', { table: currentTable, sort_by: currentSort, order: currentOrder }, function(data) {
+                    let tweets = JSON.parse(data);
+                    let tbody = $('#tweet-table tbody');
+                    tbody.empty();
+                    tweets.forEach(function(tweet) {
+                        tbody.append(`
+                            <tr>
+                                <td>${tweet.id}</td>
+                                <td>${new Date(tweet.tweet_time).toLocaleString()}</td>
+                                <td>${tweet.tweet_content}</td>
+                                <td>${tweet.favorite_count}</td>
+                                <td>${tweet.retweet_count}</td>
+                                <td>${tweet.reply_count}</td>
+                            </tr>
+                        `);
+                    });
+                });
+            }
+
+            $('#table-select').change(function() {
+                currentTable = $(this).val();
+                updateData();
+            });
+
+            $('.sort').click(function() {
+                currentSort = $(this).data('field');
+                currentOrder = currentOrder === 'asc' ? 'desc' : 'asc';
+                updateData();
+            });
+
+            updateData();
+        });
+    </script>
+</body>
+</html>
